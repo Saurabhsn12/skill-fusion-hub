@@ -14,32 +14,217 @@ export type Database = {
   }
   public: {
     Tables: {
+      events: {
+        Row: {
+          ad_image_url: string | null
+          campus: string
+          created_at: string
+          created_by: string
+          description: string | null
+          event_date: string
+          event_time: string
+          event_type: string
+          id: string
+          is_paid: boolean
+          is_promoted: boolean
+          location: string
+          max_participants: number
+          organizer_name: string
+          price: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ad_image_url?: string | null
+          campus: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          event_date: string
+          event_time: string
+          event_type: string
+          id?: string
+          is_paid?: boolean
+          is_promoted?: boolean
+          location: string
+          max_participants: number
+          organizer_name: string
+          price?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          ad_image_url?: string | null
+          campus?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          event_date?: string
+          event_time?: string
+          event_type?: string
+          id?: string
+          is_paid?: boolean
+          is_promoted?: boolean
+          location?: string
+          max_participants?: number
+          organizer_name?: string
+          price?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
+          avatar_url: string | null
           bgmi_id: string | null
+          bio: string | null
+          coc_id: string | null
           created_at: string
+          discord_url: string | null
           full_name: string
           id: string
+          instagram_url: string | null
+          linkedin_url: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           bgmi_id?: string | null
+          bio?: string | null
+          coc_id?: string | null
           created_at?: string
+          discord_url?: string | null
           full_name: string
           id?: string
+          instagram_url?: string | null
+          linkedin_url?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           bgmi_id?: string | null
+          bio?: string | null
+          coc_id?: string | null
           created_at?: string
+          discord_url?: string | null
           full_name?: string
           id?: string
+          instagram_url?: string | null
+          linkedin_url?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: []
+      }
+      registrations: {
+        Row: {
+          event_id: string
+          id: string
+          payment_id: string | null
+          payment_status: string
+          registration_date: string
+          user_id: string
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          payment_id?: string | null
+          payment_status?: string
+          registration_date?: string
+          user_id: string
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          payment_id?: string | null
+          payment_status?: string
+          registration_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          event_id: string
+          id: string
+          payment_status: string
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          razorpay_signature: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          event_id: string
+          id?: string
+          payment_status?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_signature?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          event_id?: string
+          id?: string
+          payment_status?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_signature?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
     }
     Views: {
