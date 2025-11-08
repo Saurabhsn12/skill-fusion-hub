@@ -10,8 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, MapPin, Users, DollarSign } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Calendar, MapPin, Users, DollarSign, Image } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 // Validation schema
 const eventSchema = z.object({
@@ -52,6 +54,9 @@ type EventFormData = z.infer<typeof eventSchema>;
 const CreateEvent = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPromoted, setIsPromoted] = useState(false);
+  const [adImage, setAdImage] = useState<File | null>(null);
+  const [adImagePreview, setAdImagePreview] = useState<string>("");
 
   const {
     register,
@@ -68,24 +73,83 @@ const CreateEvent = () => {
 
   const isPaid = watch("isPaid");
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAdImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAdImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const onSubmit = async (data: EventFormData) => {
     setIsSubmitting(true);
     
     try {
-      // Validation for paid events
       if (data.isPaid === "paid" && (!data.price || Number(data.price) <= 0)) {
         toast.error("Please enter a valid price for paid events");
         setIsSubmitting(false);
         return;
       }
 
-      // TODO: Submit to backend
-      console.log("Event data:", data);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("You must be logged in to create an event");
+        navigate("/auth");
+        return;
+      }
+
+      let adImageUrl = null;
+
+      // Upload ad image if provided
+      if (adImage) {
+        const fileExt = adImage.name.split('.').pop();
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+        const { error: uploadError, data: uploadData } = await supabase.storage
+          .from('event-ads')
+          .upload(fileName, adImage);
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('event-ads')
+          .getPublicUrl(fileName);
+        
+        adImageUrl = publicUrl;
+      }
+
+      // Insert event
+      const { error: insertError } = await supabase
+        .from('events')
+        .insert({
+          title: data.title,
+          description: data.description,
+          event_type: data.eventType,
+          campus: data.campus,
+          organizer_name: data.organizerName,
+          event_date: data.date,
+          event_time: data.time,
+          location: data.location,
+          max_participants: Number(data.maxParticipants),
+          is_paid: data.isPaid === "paid",
+          price: data.isPaid === "paid" ? Number(data.price) : null,
+          is_promoted: isPromoted,
+          ad_image_url: adImageUrl,
+          created_by: user.id,
+        });
+
+      if (insertError) throw insertError;
       
       toast.success("Event created successfully!");
       navigate("/events");
-    } catch (error) {
-      toast.error("Failed to create event. Please try again.");
+    } catch (error: any) {
+      console.error("Error creating event:", error);
+      toast.error(error.message || "Failed to create event. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -288,6 +352,42 @@ const CreateEvent = () => {
                   )}
                 </div>
               )}
+
+              {/* Advertisement Image */}
+              <div className="space-y-2">
+                <Label htmlFor="adImage">Advertisement Image (Optional)</Label>
+                <div className="space-y-4">
+                  <Input
+                    id="adImage"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                  />
+                  {adImagePreview && (
+                    <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                      <img src={adImagePreview} alt="Ad preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Upload an image to promote your event (max 5MB, .jpg, .png, .webp)
+                  </p>
+                </div>
+              </div>
+
+              {/* Promote Event Toggle */}
+              <div className="flex items-center justify-between space-x-2 p-4 border border-border rounded-lg">
+                <div className="flex-1">
+                  <Label htmlFor="promote" className="text-base font-semibold">Promote Event</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Show this event in the homepage featured carousel
+                  </p>
+                </div>
+                <Switch
+                  id="promote"
+                  checked={isPromoted}
+                  onCheckedChange={setIsPromoted}
+                />
+              </div>
 
               {/* Submit Button */}
               <div className="flex gap-4">

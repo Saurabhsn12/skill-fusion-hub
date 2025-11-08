@@ -1,58 +1,52 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Trophy, Users, Gamepad2, Target, ArrowRight, Calendar, MapPin } from "lucide-react";
+import { Trophy, Users, Gamepad2, Target, ArrowRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import EventCard from "@/components/EventCard";
+import PromotedEventsCarousel from "@/components/PromotedEventsCarousel";
 import heroImage from "@/assets/hero-gaming.jpg";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
-  // Mock featured events
-  const featuredEvents = [
-    {
-      id: "1",
-      title: "BGMI Campus Championship 2024",
-      image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80",
-      date: "Dec 15, 2024 • 6:00 PM",
-      location: "IIT Delhi Campus",
-      category: "BGMI",
-      participants: 45,
-      maxParticipants: 100,
-      isPaid: true,
-      price: 299,
-      featured: true,
-    },
-    {
-      id: "4",
-      title: "Valorant Campus Showdown",
-      image: "https://images.unsplash.com/photo-1552820728-8b83bb6b773f?w=800&q=80",
-      date: "Dec 22, 2024 • 8:00 PM",
-      location: "Mumbai University",
-      category: "Valorant",
-      participants: 40,
-      maxParticipants: 80,
-      isPaid: true,
-      price: 499,
-      featured: true,
-    },
-    {
-      id: "2",
-      title: "Free Fire Max Tournament",
-      image: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80",
-      date: "Dec 18, 2024 • 5:00 PM",
-      location: "Delhi University",
-      category: "Free Fire",
-      participants: 32,
-      maxParticipants: 64,
-      isPaid: false,
-      featured: false,
-    },
-  ];
+  const [featuredEvents, setFeaturedEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchFeaturedEvents();
+  }, []);
+
+  const fetchFeaturedEvents = async () => {
+    const { data } = await supabase
+      .from('events')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(3);
+    
+    if (data) {
+      setFeaturedEvents(data.map(event => ({
+        id: event.id,
+        title: event.title,
+        image: event.ad_image_url || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80',
+        date: `${new Date(event.event_date).toLocaleDateString()} • ${event.event_time}`,
+        location: event.location,
+        category: event.event_type,
+        participants: 0,
+        maxParticipants: event.max_participants,
+        isPaid: event.is_paid,
+        price: event.price,
+        featured: event.is_promoted,
+      })));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       
+      {/* Promoted Events Carousel */}
+      <PromotedEventsCarousel />
+
       {/* Hero Section */}
       <section className="relative h-[600px] flex items-center">
         <div className="absolute inset-0">

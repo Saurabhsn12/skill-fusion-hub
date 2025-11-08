@@ -1,95 +1,84 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import EventCard from "@/components/EventCard";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-// Mock data - will be replaced with real data from backend
-const mockEvents = [
-  {
-    id: "1",
-    title: "BGMI Campus Championship 2024",
-    image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80",
-    date: "Dec 15, 2024 • 6:00 PM",
-    location: "IIT Delhi Campus",
-    category: "BGMI",
-    participants: 45,
-    maxParticipants: 100,
-    isPaid: true,
-    price: 299,
-    featured: true,
-  },
-  {
-    id: "2",
-    title: "Free Fire Max Tournament",
-    image: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80",
-    date: "Dec 18, 2024 • 5:00 PM",
-    location: "Delhi University",
-    category: "Free Fire",
-    participants: 32,
-    maxParticipants: 64,
-    isPaid: false,
-    featured: false,
-  },
-  {
-    id: "3",
-    title: "Call of Duty Mobile League",
-    image: "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=800&q=80",
-    date: "Dec 20, 2024 • 7:00 PM",
-    location: "Online",
-    category: "COD Mobile",
-    participants: 28,
-    maxParticipants: 50,
-    isPaid: true,
-    price: 199,
-    featured: false,
-  },
-  {
-    id: "4",
-    title: "Valorant Campus Showdown",
-    image: "https://images.unsplash.com/photo-1552820728-8b83bb6b773f?w=800&q=80",
-    date: "Dec 22, 2024 • 8:00 PM",
-    location: "Mumbai University",
-    category: "Valorant",
-    participants: 40,
-    maxParticipants: 80,
-    isPaid: true,
-    price: 499,
-    featured: true,
-  },
-  {
-    id: "5",
-    title: "Mobile Legends Championship",
-    image: "https://images.unsplash.com/photo-1579546929662-711aa81148cf?w=800&q=80",
-    date: "Dec 25, 2024 • 6:00 PM",
-    location: "Bangalore Tech Park",
-    category: "Mobile Legends",
-    participants: 38,
-    maxParticipants: 60,
-    isPaid: false,
-    featured: false,
-  },
-  {
-    id: "6",
-    title: "Clash Royale Winter Cup",
-    image: "https://images.unsplash.com/photo-1560419015-7c427e8ae5ba?w=800&q=80",
-    date: "Dec 28, 2024 • 4:00 PM",
-    location: "Online",
-    category: "Clash Royale",
-    participants: 22,
-    maxParticipants: 32,
-    isPaid: true,
-    price: 149,
-    featured: false,
-  },
-];
+import { supabase } from "@/integrations/supabase/client";
 
 const Events = () => {
+  const [events, setEvents] = useState<any[]>([]);
+  const [filteredEvents, setFilteredEvents] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedLocation, setSelectedLocation] = useState("all");
+  const [selectedCampus, setSelectedCampus] = useState("all");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  useEffect(() => {
+    filterEvents();
+  }, [searchQuery, selectedCategory, selectedCampus, events]);
+
+  const fetchEvents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('event_date', { ascending: true });
+
+      if (error) throw error;
+      
+      const formattedEvents = data.map(event => ({
+        id: event.id,
+        title: event.title,
+        image: event.ad_image_url || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80',
+        date: `${new Date(event.event_date).toLocaleDateString()} • ${event.event_time}`,
+        location: event.location,
+        category: event.event_type,
+        participants: 0,
+        maxParticipants: event.max_participants,
+        isPaid: event.is_paid,
+        price: event.price,
+        featured: event.is_promoted,
+        campus: event.campus,
+      }));
+
+      setEvents(formattedEvents);
+      setFilteredEvents(formattedEvents);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterEvents = () => {
+    let filtered = [...events];
+
+    if (searchQuery) {
+      filtered = filtered.filter(event => 
+        event.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter(event => 
+        event.category.toLowerCase() === selectedCategory.toLowerCase()
+      );
+    }
+
+    if (selectedCampus !== "all") {
+      filtered = filtered.filter(event => 
+        event.campus.toLowerCase().includes(selectedCampus.toLowerCase())
+      );
+    }
+
+    setFilteredEvents(filtered);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,16 +118,18 @@ const Events = () => {
               </SelectContent>
             </Select>
 
-            <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+            <Select value={selectedCampus} onValueChange={setSelectedCampus}>
               <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Location" />
+                <SelectValue placeholder="Campus" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Locations</SelectItem>
-                <SelectItem value="online">Online</SelectItem>
-                <SelectItem value="delhi">Delhi</SelectItem>
-                <SelectItem value="mumbai">Mumbai</SelectItem>
-                <SelectItem value="bangalore">Bangalore</SelectItem>
+                <SelectItem value="all">All Campuses</SelectItem>
+                <SelectItem value="iit">IIT</SelectItem>
+                <SelectItem value="delhi">Delhi University</SelectItem>
+                <SelectItem value="mumbai">Mumbai University</SelectItem>
+                <SelectItem value="bangalore">Bangalore University</SelectItem>
+                <SelectItem value="public">Public Event</SelectItem>
+                <SelectItem value="online">Online Event</SelectItem>
               </SelectContent>
             </Select>
 
@@ -149,7 +140,11 @@ const Events = () => {
         </div>
 
         {/* Events Grid or Empty State */}
-        {mockEvents.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-20">
+            <p className="text-muted-foreground">Loading events...</p>
+          </div>
+        ) : filteredEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-6">
               <Filter className="h-12 w-12 text-muted-foreground" />
@@ -166,7 +161,7 @@ const Events = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockEvents.map((event) => (
+            {filteredEvents.map((event) => (
               <EventCard key={event.id} {...event} />
             ))}
           </div>
