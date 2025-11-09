@@ -33,7 +33,12 @@ serve(async (req) => {
 
     console.log('Verifying payment:', { razorpay_order_id, razorpay_payment_id });
 
-    const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET') || 'demo_key_secret';
+    const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
+    
+    if (!keySecret) {
+      console.error('Razorpay secret key not configured');
+      throw new Error('Payment system configuration error');
+    }
 
     // Verify signature
     const text = `${razorpay_order_id}|${razorpay_payment_id}`;
@@ -93,8 +98,16 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Error verifying payment:', error);
+    
+    // Return generic error to client, log details server-side only
+    const userMessage = error instanceof Error && error.message.includes('signature')
+      ? 'Payment verification failed. Please contact support'
+      : error instanceof Error && error.message.includes('configuration')
+      ? 'Payment system is temporarily unavailable'
+      : 'Failed to complete registration. Please contact support';
+    
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: userMessage }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

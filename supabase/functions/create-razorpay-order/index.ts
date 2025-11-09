@@ -54,14 +54,22 @@ serve(async (req) => {
       .single();
 
     if (existingReg) {
-      throw new Error('Already registered for this event');
+      return new Response(
+        JSON.stringify({ error: 'You are already registered for this event' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('Creating Razorpay order:', { amount: event.price, currency, eventId, userId: user.id });
 
-    // Note: Razorpay keys should be added via secrets
-    const keyId = Deno.env.get('RAZORPAY_KEY_ID') || 'demo_key_id';
-    const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET') || 'demo_key_secret';
+    // Ensure Razorpay credentials are configured
+    const keyId = Deno.env.get('RAZORPAY_KEY_ID');
+    const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
+
+    if (!keyId || !keySecret) {
+      console.error('Razorpay credentials not configured');
+      throw new Error('Payment system configuration error');
+    }
 
     const auth = btoa(`${keyId}:${keySecret}`);
 
@@ -98,8 +106,16 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Error creating Razorpay order:', error);
+    
+    // Return generic error to client, log details server-side only
+    const userMessage = error instanceof Error && error.message.includes('registered') 
+      ? 'You are already registered for this event'
+      : error instanceof Error && error.message.includes('configuration')
+      ? 'Payment system is temporarily unavailable'
+      : 'Failed to process payment. Please try again later';
+    
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: userMessage }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

@@ -124,23 +124,7 @@ const Auth = () => {
         return;
       }
 
-      // Check if username is already taken
-      const { data: existingUsername } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('username', validation.data.username)
-        .single();
-
-      if (existingUsername) {
-        toast({
-          title: "Username taken",
-          description: "This username is already in use. Please choose another.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
-
+      // First create the auth user
       const { data, error } = await supabase.auth.signUp({
         email: validation.data.email,
         password: validation.data.password,
@@ -160,8 +144,12 @@ const Auth = () => {
           description: error.message,
           variant: "destructive",
         });
-      } else if (data.user) {
-        // Create profile
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // Create profile with proper race condition handling
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
@@ -172,18 +160,31 @@ const Auth = () => {
           });
 
         if (profileError) {
-          toast({
-            title: "Warning",
-            description: "Account created but profile setup failed. Please contact support.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Success!",
-            description: "Your account has been created successfully.",
-          });
-          navigate("/");
+          // Handle username uniqueness constraint violation
+          if (profileError.code === '23505' && profileError.message.includes('username')) {
+            toast({
+              title: "Username already taken",
+              description: "This username was just registered. Please choose another and try again.",
+              variant: "destructive",
+            });
+            // Clean up the auth user since profile creation failed
+            await supabase.auth.signOut();
+          } else {
+            toast({
+              title: "Error",
+              description: "Failed to create profile. Please contact support.",
+              variant: "destructive",
+            });
+          }
+          setIsLoading(false);
+          return;
         }
+
+        toast({
+          title: "Success!",
+          description: "Your account has been created successfully.",
+        });
+        navigate("/");
       }
     } catch (error: any) {
       toast({

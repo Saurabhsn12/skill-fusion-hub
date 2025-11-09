@@ -15,6 +15,7 @@ const Friends = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [friendRequests, setFriendRequests] = useState<any[]>([]);
+  const [sentRequests, setSentRequests] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -32,6 +33,7 @@ const Friends = () => {
     }
     setCurrentUserId(user.id);
     fetchFriendRequests(user.id);
+    fetchSentRequests(user.id);
     fetchFriends(user.id);
   };
 
@@ -46,6 +48,19 @@ const Friends = () => {
       .eq('status', 'pending');
 
     setFriendRequests(data || []);
+  };
+
+  const fetchSentRequests = async (userId: string) => {
+    const { data } = await supabase
+      .from('friend_requests')
+      .select(`
+        *,
+        receiver:profiles!friend_requests_receiver_id_fkey(user_id, username, avatar_url, full_name)
+      `)
+      .eq('sender_id', userId)
+      .eq('status', 'pending');
+
+    setSentRequests(data || []);
   };
 
   const fetchFriends = async (userId: string) => {
@@ -70,10 +85,14 @@ const Friends = () => {
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
 
+    // Sanitize search input to prevent SQL injection via ILIKE patterns
+    const sanitizedQuery = searchQuery.trim().replace(/[%_\\]/g, '\\$&');
+    
+    // Limit to prefix search for better security
     const { data } = await supabase
       .from('profiles')
       .select('user_id, username, avatar_url, full_name')
-      .ilike('username', `%${searchQuery}%`)
+      .ilike('username', `${sanitizedQuery}%`)
       .neq('user_id', currentUserId)
       .limit(20);
 
@@ -139,6 +158,29 @@ const Friends = () => {
     }
   };
 
+  const cancelFriendRequest = async (requestId: string) => {
+    const { error } = await supabase
+      .from('friend_requests')
+      .delete()
+      .eq('id', requestId);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to cancel friend request",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Request cancelled",
+        description: "Friend request has been cancelled",
+      });
+      if (currentUserId) {
+        fetchSentRequests(currentUserId);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -150,7 +192,7 @@ const Friends = () => {
         </div>
 
         <Tabs defaultValue="friends" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8">
+          <TabsList className="grid w-full grid-cols-4 mb-8">
             <TabsTrigger value="friends">
               <Users className="h-4 w-4 mr-2" />
               Friends ({friends.length})
@@ -158,6 +200,10 @@ const Friends = () => {
             <TabsTrigger value="requests">
               <UserPlus className="h-4 w-4 mr-2" />
               Requests ({friendRequests.length})
+            </TabsTrigger>
+            <TabsTrigger value="sent">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Sent ({sentRequests.length})
             </TabsTrigger>
             <TabsTrigger value="search">
               <Search className="h-4 w-4 mr-2" />
@@ -234,6 +280,50 @@ const Friends = () => {
                           <Button size="sm" variant="outline" onClick={() => handleFriendRequest(request.id, false)}>
                             <X className="h-4 w-4 mr-1" />
                             Reject
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="sent">
+            <div className="space-y-4">
+              {sentRequests.length === 0 ? (
+                <Card className="border-border bg-card">
+                  <CardContent className="p-12 text-center">
+                    <UserPlus className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-foreground mb-2">No Pending Requests</h3>
+                    <p className="text-muted-foreground">You haven't sent any friend requests</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                sentRequests.map((request) => (
+                  <Card key={request.id} className="border-border bg-card">
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={request.receiver.avatar_url || undefined} />
+                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground">
+                            {request.receiver.username?.charAt(0)?.toUpperCase() || '?'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-foreground">@{request.receiver.username}</h3>
+                          <p className="text-sm text-muted-foreground">{request.receiver.full_name}</p>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          <Badge variant="secondary">Pending</Badge>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => cancelFriendRequest(request.id)}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Cancel Request
                           </Button>
                         </div>
                       </div>
