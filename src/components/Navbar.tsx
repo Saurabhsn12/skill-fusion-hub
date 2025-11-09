@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, Search, User, LogOut } from "lucide-react";
+import { Menu, Search, User, LogOut, Users, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -54,11 +54,17 @@ const Navbar = () => {
               <Link to="/events" className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
                 Browse Events
               </Link>
-              <Link to="/create-event" className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
-                Create Event
-              </Link>
               <Link to="/leaderboard" className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
                 Leaderboard
+              </Link>
+              <Link to="/friends" className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
+                Friends
+              </Link>
+              <Link to="/teams" className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
+                Teams
+              </Link>
+              <Link to="/create-event" className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors">
+                Create Event
               </Link>
             </div>
           </div>

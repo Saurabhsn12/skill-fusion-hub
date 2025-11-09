@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Edit, Instagram, Linkedin, MessageSquare, Calendar, Trophy, Upload, Loader2, TrendingUp } from "lucide-react";
+import { Edit, Instagram, Linkedin, MessageSquare, Calendar, Trophy, Upload, Loader2, TrendingUp, UserPlus, UserCheck, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -27,7 +27,11 @@ const profileSchema = z.object({
 
 const Profile = () => {
   const navigate = useNavigate();
+  const { userId } = useParams();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isOwnProfile, setIsOwnProfile] = useState(true);
   const [profile, setProfile] = useState<any>(null);
+  const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'friends'>('none');
   const [events, setEvents] = useState<any[]>([]);
   const [stats, setStats] = useState({ participated: 0, registered: 0, ranking: null as number | null, totalUsers: 0 });
   const [loading, setLoading] = useState(true);
@@ -47,36 +51,65 @@ const Profile = () => {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchProfile();
-    fetchUserEvents();
-    fetchUserStats();
-  }, []);
+    initProfile();
+  }, [userId]);
 
-  const fetchProfile = async () => {
+  const initProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+
+    setCurrentUserId(user.id);
+    const profileUserId = userId || user.id;
+    setIsOwnProfile(profileUserId === user.id);
+    
+    await fetchProfile(profileUserId);
+    await fetchUserEvents(profileUserId);
+    await fetchUserStats(profileUserId);
+    
+    if (profileUserId !== user.id) {
+      await checkFriendStatus(user.id, profileUserId);
+    }
+  };
+
+  const checkFriendStatus = async (currentUserId: string, targetUserId: string) => {
+    const { data } = await supabase
+      .from('friend_requests')
+      .select('status')
+      .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${currentUserId})`)
+      .single();
+
+    if (data) {
+      setFriendStatus(data.status === 'accepted' ? 'friends' : 'pending');
+    } else {
+      setFriendStatus('none');
+    }
+  };
+
+  const fetchProfile = async (profileUserId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', profileUserId)
         .single();
 
       if (error) throw error;
       setProfile(data);
-      setEditForm({
-        full_name: data.full_name || "",
-        bio: data.bio || "",
-        bgmi_id: data.bgmi_id || "",
-        coc_id: data.coc_id || "",
-        instagram_url: data.instagram_url || "",
-        discord_url: data.discord_url || "",
-        linkedin_url: data.linkedin_url || "",
-      });
+      
+      if (profileUserId === currentUserId) {
+        setEditForm({
+          full_name: data.full_name || "",
+          bio: data.bio || "",
+          bgmi_id: data.bgmi_id || "",
+          coc_id: data.coc_id || "",
+          instagram_url: data.instagram_url || "",
+          discord_url: data.discord_url || "",
+          linkedin_url: data.linkedin_url || "",
+        });
+      }
     } catch (error: any) {
       toast.error("Failed to load profile");
     } finally {
@@ -84,18 +117,15 @@ const Profile = () => {
     }
   };
 
-  const fetchUserEvents = async () => {
+  const fetchUserEvents = async (profileUserId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data } = await supabase
         .from('registrations')
         .select(`
           *,
           events (*)
         `)
-        .eq('user_id', user.id);
+        .eq('user_id', profileUserId);
 
       setEvents(data || []);
     } catch (error) {
@@ -103,15 +133,12 @@ const Profile = () => {
     }
   };
 
-  const fetchUserStats = async () => {
+  const fetchUserStats = async (profileUserId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data: rankings } = await supabase
         .from('user_rankings')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', profileUserId)
         .single();
 
       const { count: totalUsers } = await supabase
@@ -210,13 +237,36 @@ const Profile = () => {
       setEditDialogOpen(false);
       setAvatarFile(null);
       setAvatarPreview(null);
-      fetchProfile();
-      fetchUserStats();
+      fetchProfile(user.id);
+      fetchUserStats(user.id);
     } catch (error: any) {
       toast.error(error.message || "Failed to update profile");
     } finally {
       setUploading(false);
       setUploadProgress(0);
+    }
+  };
+
+  const sendFriendRequest = async () => {
+    if (!currentUserId || !profile?.user_id) return;
+
+    const { error } = await supabase
+      .from('friend_requests')
+      .insert({
+        sender_id: currentUserId,
+        receiver_id: profile.user_id,
+        status: 'pending',
+      });
+
+    if (error) {
+      if (error.code === '23505') {
+        toast.error("Friend request already sent");
+      } else {
+        toast.error("Failed to send friend request");
+      }
+    } else {
+      toast.success("Friend request sent!");
+      setFriendStatus('pending');
     }
   };
 
@@ -308,7 +358,12 @@ const Profile = () => {
               </Avatar>
               
               <div className="flex-1 text-center md:text-left">
-                <h1 className="text-3xl font-bold text-foreground mb-2">{profile.full_name}</h1>
+                <div className="mb-2">
+                  {profile.username && (
+                    <p className="text-primary text-lg mb-1">@{profile.username}</p>
+                  )}
+                  <h1 className="text-3xl font-bold text-foreground">{profile.full_name}</h1>
+                </div>
                 {profile.bio && <p className="text-muted-foreground mb-4">{profile.bio}</p>}
                 
                 <div className="flex flex-wrap gap-3 justify-center md:justify-start mb-4">
@@ -339,83 +394,106 @@ const Profile = () => {
                 </div>
               </div>
 
-              <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit Profile
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Edit Profile</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Profile Picture (Max 5MB - JPEG, PNG, WebP, GIF)</Label>
-                      <div className="flex items-center gap-4 mt-2">
-                        {avatarPreview && (
-                          <Avatar className="h-20 w-20">
-                            <AvatarImage src={avatarPreview} />
-                          </Avatar>
-                        )}
-                        <div className="flex-1">
-                          <Input 
-                            type="file" 
-                            accept="image/jpeg,image/png,image/webp,image/gif" 
-                            onChange={handleAvatarChange}
-                            disabled={uploading}
-                          />
-                        </div>
-                      </div>
-                      {uploading && (
-                        <div className="mt-2">
-                          <Progress value={uploadProgress} className="h-2" />
-                          <p className="text-sm text-muted-foreground mt-1">Uploading... {uploadProgress}%</p>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <Label>Full Name</Label>
-                      <Input value={editForm.full_name} onChange={(e) => setEditForm({...editForm, full_name: e.target.value})} />
-                    </div>
-                    <div>
-                      <Label>Bio</Label>
-                      <Textarea value={editForm.bio} onChange={(e) => setEditForm({...editForm, bio: e.target.value})} rows={3} />
-                    </div>
-                    <div>
-                      <Label>BGMI ID</Label>
-                      <Input value={editForm.bgmi_id} onChange={(e) => setEditForm({...editForm, bgmi_id: e.target.value})} />
-                    </div>
-                    <div>
-                      <Label>Clash of Clans ID</Label>
-                      <Input value={editForm.coc_id} onChange={(e) => setEditForm({...editForm, coc_id: e.target.value})} />
-                    </div>
-                    <div>
-                      <Label>Instagram URL</Label>
-                      <Input value={editForm.instagram_url} onChange={(e) => setEditForm({...editForm, instagram_url: e.target.value})} placeholder="https://instagram.com/username" />
-                    </div>
-                    <div>
-                      <Label>Discord URL</Label>
-                      <Input value={editForm.discord_url} onChange={(e) => setEditForm({...editForm, discord_url: e.target.value})} placeholder="https://discord.gg/..." />
-                    </div>
-                    <div>
-                      <Label>LinkedIn URL</Label>
-                      <Input value={editForm.linkedin_url} onChange={(e) => setEditForm({...editForm, linkedin_url: e.target.value})} placeholder="https://linkedin.com/in/username" />
-                    </div>
-                    <Button onClick={handleSaveProfile} className="w-full" disabled={uploading}>
-                      {uploading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        "Save Changes"
-                      )}
+              {isOwnProfile ? (
+                <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Profile
                     </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Edit Profile</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Profile Picture (Max 5MB - JPEG, PNG, WebP, GIF)</Label>
+                        <div className="flex items-center gap-4 mt-2">
+                          {avatarPreview && (
+                            <Avatar className="h-20 w-20">
+                              <AvatarImage src={avatarPreview} />
+                            </Avatar>
+                          )}
+                          <div className="flex-1">
+                            <Input 
+                              type="file" 
+                              accept="image/jpeg,image/png,image/webp,image/gif" 
+                              onChange={handleAvatarChange}
+                              disabled={uploading}
+                            />
+                          </div>
+                        </div>
+                        {uploading && (
+                          <div className="mt-2">
+                            <Progress value={uploadProgress} className="h-2" />
+                            <p className="text-sm text-muted-foreground mt-1">Uploading... {uploadProgress}%</p>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <Label>Full Name</Label>
+                        <Input value={editForm.full_name} onChange={(e) => setEditForm({...editForm, full_name: e.target.value})} />
+                      </div>
+                      <div>
+                        <Label>Bio</Label>
+                        <Textarea value={editForm.bio} onChange={(e) => setEditForm({...editForm, bio: e.target.value})} rows={3} />
+                      </div>
+                      <div>
+                        <Label>BGMI ID</Label>
+                        <Input value={editForm.bgmi_id} onChange={(e) => setEditForm({...editForm, bgmi_id: e.target.value})} />
+                      </div>
+                      <div>
+                        <Label>Clash of Clans ID</Label>
+                        <Input value={editForm.coc_id} onChange={(e) => setEditForm({...editForm, coc_id: e.target.value})} />
+                      </div>
+                      <div>
+                        <Label>Instagram URL</Label>
+                        <Input value={editForm.instagram_url} onChange={(e) => setEditForm({...editForm, instagram_url: e.target.value})} placeholder="https://instagram.com/username" />
+                      </div>
+                      <div>
+                        <Label>Discord URL</Label>
+                        <Input value={editForm.discord_url} onChange={(e) => setEditForm({...editForm, discord_url: e.target.value})} placeholder="https://discord.gg/..." />
+                      </div>
+                      <div>
+                        <Label>LinkedIn URL</Label>
+                        <Input value={editForm.linkedin_url} onChange={(e) => setEditForm({...editForm, linkedin_url: e.target.value})} placeholder="https://linkedin.com/in/username" />
+                      </div>
+                      <Button onClick={handleSaveProfile} className="w-full" disabled={uploading}>
+                        {uploading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save Changes"
+                        )}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <div>
+                  {friendStatus === 'none' && (
+                    <Button onClick={sendFriendRequest}>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Add Friend
+                    </Button>
+                  )}
+                  {friendStatus === 'pending' && (
+                    <Button variant="outline" disabled>
+                      <Clock className="h-4 w-4 mr-2" />
+                      Request Pending
+                    </Button>
+                  )}
+                  {friendStatus === 'friends' && (
+                    <Button variant="outline" disabled>
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Friends
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

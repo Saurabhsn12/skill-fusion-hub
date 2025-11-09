@@ -18,6 +18,12 @@ const signUpSchema = z.object({
     .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
     .regex(/[0-9]/, 'Must contain at least one number'),
   fullName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name too long'),
+  username: z.string()
+    .trim()
+    .min(4, 'Username must be at least 4 characters')
+    .max(30, 'Username too long')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores')
+    .transform(val => val.toLowerCase()),
   bgmiId: z.string().trim().max(50, 'ID too long').optional(),
 });
 
@@ -31,6 +37,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [bgmiId, setBgmiId] = useState("");
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -106,11 +113,28 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      const validation = signUpSchema.safeParse({ email, password, fullName, bgmiId });
+      const validation = signUpSchema.safeParse({ email, password, fullName, username, bgmiId });
       if (!validation.success) {
         toast({
           title: "Validation Error",
           description: validation.error.errors[0].message,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if username is already taken
+      const { data: existingUsername } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', validation.data.username)
+        .single();
+
+      if (existingUsername) {
+        toast({
+          title: "Username taken",
+          description: "This username is already in use. Please choose another.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -124,6 +148,7 @@ const Auth = () => {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: validation.data.fullName,
+            username: validation.data.username,
             bgmi_id: validation.data.bgmiId,
           }
         }
@@ -142,6 +167,7 @@ const Auth = () => {
           .insert({
             user_id: data.user.id,
             full_name: validation.data.fullName,
+            username: validation.data.username,
             bgmi_id: validation.data.bgmiId || null,
           });
 
@@ -242,6 +268,18 @@ const Auth = () => {
                       onChange={(e) => setFullName(e.target.value)}
                       required 
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-username">Username</Label>
+                    <Input 
+                      id="signup-username" 
+                      type="text" 
+                      placeholder="@your_username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      required 
+                    />
+                    <p className="text-xs text-muted-foreground">Min 4 characters, letters, numbers, and underscores only</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>

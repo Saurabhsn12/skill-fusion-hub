@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
+import { UsernamePrompt } from "@/components/UsernamePrompt";
 
 const Index = lazy(() => import("./pages/Index"));
 const Events = lazy(() => import("./pages/Events"));
@@ -11,6 +12,8 @@ const Profile = lazy(() => import("./pages/Profile"));
 const CreateEvent = lazy(() => import("./pages/CreateEvent"));
 const EventDetail = lazy(() => import("./pages/EventDetail"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
+const Friends = lazy(() => import("./pages/Friends"));
+const Teams = lazy(() => import("./pages/Teams"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Admin = lazy(() => import("./pages/Admin"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -31,15 +34,19 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <UsernamePrompt />
       <BrowserRouter>
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/events" element={<Events />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/profile/:userId" element={<Profile />} />
             <Route path="/create-event" element={<CreateEvent />} />
             <Route path="/event/:id" element={<EventDetail />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/friends" element={<Friends />} />
+            <Route path="/teams" element={<Teams />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<NotFound />} />
