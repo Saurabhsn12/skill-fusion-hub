@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.78.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,9 +12,52 @@ serve(async (req) => {
   }
 
   try {
-    const { amount, currency = 'INR', eventId, userId } = await req.json();
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
 
-    console.log('Creating Razorpay order:', { amount, currency, eventId, userId });
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      throw new Error('Unauthorized');
+    }
+
+    const { currency = 'INR', eventId } = await req.json();
+
+    // Fetch event details from database to validate and get actual price
+    const { data: event, error: eventError } = await supabaseClient
+      .from('events')
+      .select('price, is_paid, title')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError || !event) {
+      throw new Error('Event not found');
+    }
+
+    if (!event.is_paid) {
+      throw new Error('Event is not a paid event');
+    }
+
+    // Check if user already registered
+    const { data: existingReg } = await supabaseClient
+      .from('registrations')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (existingReg) {
+      throw new Error('Already registered for this event');
+    }
+
+    console.log('Creating Razorpay order:', { amount: event.price, currency, eventId, userId: user.id });
 
     // Note: Razorpay keys should be added via secrets
     const keyId = Deno.env.get('RAZORPAY_KEY_ID') || 'demo_key_id';
@@ -22,12 +66,12 @@ serve(async (req) => {
     const auth = btoa(`${keyId}:${keySecret}`);
 
     const orderData = {
-      amount: amount * 100, // Convert to paise
+      amount: event.price * 100, // Convert to paise - use database price
       currency,
       receipt: `event_${eventId}_${Date.now()}`,
       notes: {
         event_id: eventId,
-        user_id: userId,
+        user_id: user.id,
       },
     };
 

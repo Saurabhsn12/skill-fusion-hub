@@ -13,7 +13,23 @@ serve(async (req) => {
   }
 
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, eventId, userId, amount } = await req.json();
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      throw new Error('Unauthorized');
+    }
+
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, eventId, amount } = await req.json();
 
     console.log('Verifying payment:', { razorpay_order_id, razorpay_payment_id });
 
@@ -31,17 +47,17 @@ serve(async (req) => {
 
     console.log('Payment signature verified successfully');
 
-    // Initialize Supabase client
-    const supabaseClient = createClient(
+    // Use service role key for database operations
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Create transaction record
-    const { data: transaction, error: txError } = await supabaseClient
+    // Create transaction record with authenticated user ID
+    const { data: transaction, error: txError } = await supabaseAdmin
       .from('transactions')
       .insert({
-        user_id: userId,
+        user_id: user.id,
         event_id: eventId,
         amount,
         currency: 'INR',
@@ -55,11 +71,11 @@ serve(async (req) => {
 
     if (txError) throw txError;
 
-    // Create registration record
-    const { data: registration, error: regError } = await supabaseClient
+    // Create registration record with authenticated user ID
+    const { data: registration, error: regError } = await supabaseAdmin
       .from('registrations')
       .insert({
-        user_id: userId,
+        user_id: user.id,
         event_id: eventId,
         payment_id: transaction.id,
         payment_status: 'completed',

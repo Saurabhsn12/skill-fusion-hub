@@ -93,11 +93,11 @@ const EventDetail = () => {
         return;
       }
 
+      // Create Razorpay order - amount validation happens server-side
       const { data: orderData, error: orderError } = await supabase.functions.invoke('create-razorpay-order', {
         body: {
-          amount: event.price,
+          currency: 'INR',
           eventId: id,
-          userId: user.id,
         },
       });
 
@@ -117,7 +117,6 @@ const EventDetail = () => {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
               eventId: id,
-              userId: user.id,
               amount: event.price,
             },
           });
