@@ -95,45 +95,53 @@ const Index = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <Card className="border-border bg-card hover:shadow-[var(--shadow-card)] transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Trophy className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">Compete & Win</h3>
-                <p className="text-muted-foreground">Join tournaments with amazing prize pools and prove your skills</p>
-              </CardContent>
-            </Card>
+            <Link to="/events" className="block">
+              <Card className="border-border bg-card hover:shadow-[var(--shadow-card)] transition-all duration-300 cursor-pointer hover:scale-105">
+                <CardContent className="p-6 text-center">
+                  <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Trophy className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-foreground mb-2">Compete & Win</h3>
+                  <p className="text-muted-foreground">Join tournaments with amazing prize pools and prove your skills</p>
+                </CardContent>
+              </Card>
+            </Link>
 
-            <Card className="border-border bg-card hover:shadow-[var(--shadow-card)] transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Users className="h-8 w-8 text-accent" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">Build Teams</h3>
-                <p className="text-muted-foreground">Create or join teams and dominate together</p>
-              </CardContent>
-            </Card>
+            <Link to="/leaderboard" className="block">
+              <Card className="border-border bg-card hover:shadow-[var(--shadow-card)] transition-all duration-300 cursor-pointer hover:scale-105">
+                <CardContent className="p-6 text-center">
+                  <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Users className="h-8 w-8 text-accent" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-foreground mb-2">Build Teams</h3>
+                  <p className="text-muted-foreground">Create or join teams and dominate together</p>
+                </CardContent>
+              </Card>
+            </Link>
 
-            <Card className="border-border bg-card hover:shadow-[var(--shadow-card)] transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Target className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">Skill Portfolio</h3>
-                <p className="text-muted-foreground">Showcase your gaming achievements and rankings</p>
-              </CardContent>
-            </Card>
+            <Link to="/profile" className="block">
+              <Card className="border-border bg-card hover:shadow-[var(--shadow-card)] transition-all duration-300 cursor-pointer hover:scale-105">
+                <CardContent className="p-6 text-center">
+                  <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Target className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-foreground mb-2">Skill Portfolio</h3>
+                  <p className="text-muted-foreground">Showcase your gaming achievements and rankings</p>
+                </CardContent>
+              </Card>
+            </Link>
 
-            <Card className="border-border bg-card hover:shadow-[var(--shadow-card)] transition-all duration-300">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Gamepad2 className="h-8 w-8 text-accent" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">Multi-Game</h3>
-                <p className="text-muted-foreground">BGMI, Free Fire, Valorant, and more games supported</p>
-              </CardContent>
-            </Card>
+            <Link to="/events" className="block">
+              <Card className="border-border bg-card hover:shadow-[var(--shadow-card)] transition-all duration-300 cursor-pointer hover:scale-105">
+                <CardContent className="p-6 text-center">
+                  <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Gamepad2 className="h-8 w-8 text-accent" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-foreground mb-2">Multi-Game</h3>
+                  <p className="text-muted-foreground">BGMI, Free Fire, Valorant, and more games supported</p>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
         </div>
       </section>

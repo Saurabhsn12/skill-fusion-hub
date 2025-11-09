@@ -9,16 +9,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Edit, Instagram, Linkedin, MessageSquare, Calendar } from "lucide-react";
+import { Edit, Instagram, Linkedin, MessageSquare, Calendar, Trophy, Upload, Loader2, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
+import { z } from "zod";
+
+const profileSchema = z.object({
+  full_name: z.string().min(1, "Name is required").max(100, "Name too long"),
+  bio: z.string().max(500, "Bio too long").optional(),
+  bgmi_id: z.string().max(50, "ID too long").optional(),
+  coc_id: z.string().max(50, "ID too long").optional(),
+  instagram_url: z.string().url("Invalid URL").optional().or(z.literal("")),
+  discord_url: z.string().url("Invalid URL").optional().or(z.literal("")),
+  linkedin_url: z.string().url("Invalid URL").optional().or(z.literal("")),
+});
 
 const Profile = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
+  const [stats, setStats] = useState({ participated: 0, registered: 0, ranking: null as number | null, totalUsers: 0 });
   const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [editForm, setEditForm] = useState({
     full_name: "",
     bio: "",
@@ -29,10 +44,12 @@ const Profile = () => {
     linkedin_url: "",
   });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProfile();
     fetchUserEvents();
+    fetchUserStats();
   }, []);
 
   const fetchProfile = async () => {
@@ -86,29 +103,90 @@ const Profile = () => {
     }
   };
 
+  const fetchUserStats = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: rankings } = await supabase
+        .from('user_rankings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      const { count: totalUsers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      if (rankings) {
+        setStats({
+          participated: rankings.events_participated || 0,
+          registered: rankings.events_registered || 0,
+          ranking: rankings.ranking || null,
+          totalUsers: totalUsers || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      
+      if (file.size > maxSize) {
+        toast.error("Image too large. Maximum size is 5MB.");
+        return;
+      }
+      
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Invalid file type. Please upload JPEG, PNG, WebP, or GIF.");
+        return;
+      }
+      
       setAvatarFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   const handleSaveProfile = async () => {
     try {
+      const validation = profileSchema.safeParse(editForm);
+      if (!validation.success) {
+        toast.error(validation.error.errors[0].message);
+        return;
+      }
+
+      setUploading(true);
+      setUploadProgress(10);
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       let avatarUrl = profile?.avatar_url;
 
       if (avatarFile) {
+        setUploadProgress(30);
         const fileExt = avatarFile.name.split('.').pop();
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+        
         const { error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(fileName, avatarFile);
+          .upload(fileName, avatarFile, {
+            cacheControl: '3600',
+            upsert: false
+          });
 
         if (uploadError) throw uploadError;
-
+        
+        setUploadProgress(60);
         const { data: { publicUrl } } = supabase.storage
           .from('avatars')
           .getPublicUrl(fileName);
@@ -116,22 +194,30 @@ const Profile = () => {
         avatarUrl = publicUrl;
       }
 
+      setUploadProgress(80);
       const { error } = await supabase
         .from('profiles')
         .update({
-          ...editForm,
+          ...validation.data,
           avatar_url: avatarUrl,
         })
         .eq('user_id', user.id);
 
       if (error) throw error;
 
+      setUploadProgress(100);
       toast.success("Profile updated successfully!");
       setEditDialogOpen(false);
+      setAvatarFile(null);
+      setAvatarPreview(null);
       fetchProfile();
+      fetchUserStats();
     } catch (error: any) {
       console.error('Error updating profile:', error);
       toast.error(error.message || "Failed to update profile");
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -158,13 +244,68 @@ const Profile = () => {
       <Navbar />
       
       <main className="container mx-auto px-4 py-8">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <Card className="border-border bg-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Events Participated</p>
+                  <p className="text-3xl font-bold text-foreground">{stats.participated}</p>
+                </div>
+                <Trophy className="h-8 w-8 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Events Registered</p>
+                  <p className="text-3xl font-bold text-foreground">{stats.registered}</p>
+                </div>
+                <Calendar className="h-8 w-8 text-accent" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Global Ranking</p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {stats.ranking ? `#${stats.ranking}` : "Unranked"}
+                  </p>
+                </div>
+                <TrendingUp className="h-8 w-8 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Users</p>
+                  <p className="text-3xl font-bold text-foreground">{stats.totalUsers}</p>
+                </div>
+                <MessageSquare className="h-8 w-8 text-accent" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Profile Header */}
         <Card className="border-border bg-card mb-8">
           <CardContent className="p-8">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-              <Avatar className="h-32 w-32">
+              <Avatar className="h-32 w-32 ring-2 ring-primary ring-offset-2 ring-offset-background">
                 <AvatarImage src={profile.avatar_url || undefined} />
-                <AvatarFallback className="text-2xl">{profile.full_name?.charAt(0)}</AvatarFallback>
+                <AvatarFallback className="text-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground">
+                  {profile.full_name?.charAt(0)}
+                </AvatarFallback>
               </Avatar>
               
               <div className="flex-1 text-center md:text-left">
@@ -212,8 +353,28 @@ const Profile = () => {
                   </DialogHeader>
                   <div className="space-y-4">
                     <div>
-                      <Label>Profile Picture</Label>
-                      <Input type="file" accept="image/*" onChange={handleAvatarChange} />
+                      <Label>Profile Picture (Max 5MB - JPEG, PNG, WebP, GIF)</Label>
+                      <div className="flex items-center gap-4 mt-2">
+                        {avatarPreview && (
+                          <Avatar className="h-20 w-20">
+                            <AvatarImage src={avatarPreview} />
+                          </Avatar>
+                        )}
+                        <div className="flex-1">
+                          <Input 
+                            type="file" 
+                            accept="image/jpeg,image/png,image/webp,image/gif" 
+                            onChange={handleAvatarChange}
+                            disabled={uploading}
+                          />
+                        </div>
+                      </div>
+                      {uploading && (
+                        <div className="mt-2">
+                          <Progress value={uploadProgress} className="h-2" />
+                          <p className="text-sm text-muted-foreground mt-1">Uploading... {uploadProgress}%</p>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <Label>Full Name</Label>
@@ -243,7 +404,16 @@ const Profile = () => {
                       <Label>LinkedIn URL</Label>
                       <Input value={editForm.linkedin_url} onChange={(e) => setEditForm({...editForm, linkedin_url: e.target.value})} placeholder="https://linkedin.com/in/username" />
                     </div>
-                    <Button onClick={handleSaveProfile} className="w-full">Save Changes</Button>
+                    <Button onClick={handleSaveProfile} className="w-full" disabled={uploading}>
+                      {uploading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Changes"
+                      )}
+                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -252,7 +422,7 @@ const Profile = () => {
         </Card>
 
         {/* Current Events */}
-        {currentEvents.length > 0 && (
+        {currentEvents.length > 0 ? (
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-foreground mb-4">Current Events</h2>
             <div className="grid gap-4">
@@ -272,10 +442,21 @@ const Profile = () => {
               ))}
             </div>
           </div>
+        ) : (
+          <Card className="border-border bg-card mb-8">
+            <CardContent className="p-12 text-center">
+              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                <Calendar className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-2">No Current Events</h3>
+              <p className="text-muted-foreground mb-4">You haven't registered for any upcoming events yet.</p>
+              <Button variant="outline" onClick={() => navigate('/events')}>Browse Events</Button>
+            </CardContent>
+          </Card>
         )}
 
         {/* Past Events */}
-        {pastEvents.length > 0 && (
+        {pastEvents.length > 0 ? (
           <div>
             <h2 className="text-2xl font-bold text-foreground mb-4">Past Events</h2>
             <div className="grid gap-4">
@@ -295,6 +476,17 @@ const Profile = () => {
               ))}
             </div>
           </div>
+        ) : currentEvents.length === 0 && (
+          <Card className="border-border bg-card">
+            <CardContent className="p-12 text-center">
+              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trophy className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-2">No Tournament History</h3>
+              <p className="text-muted-foreground mb-4">You haven't participated in any events yet. Join your first tournament!</p>
+              <Button variant="outline" onClick={() => navigate('/events')}>Explore Events</Button>
+            </CardContent>
+          </Card>
         )}
       </main>
     </div>
