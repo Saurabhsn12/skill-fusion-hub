@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { z } from "zod";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,6 +12,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Users, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+const teamSchema = z.object({
+  name: z.string()
+    .trim()
+    .min(3, 'Team name must be at least 3 characters')
+    .max(50, 'Team name must be less than 50 characters')
+    .regex(/^[a-zA-Z0-9\s\-_]+$/, 'Team name can only contain letters, numbers, spaces, hyphens, and underscores'),
+  description: z.string()
+    .trim()
+    .max(500, 'Description must be less than 500 characters')
+    .optional(),
+});
 
 const Teams = () => {
   const [teams, setTeams] = useState<any[]>([]);
@@ -62,7 +75,24 @@ const Teams = () => {
   };
 
   const createTeam = async () => {
-    if (!currentUserId || !newTeamName.trim()) return;
+    if (!currentUserId) return;
+
+    // Validate input
+    try {
+      teamSchema.parse({
+        name: newTeamName,
+        description: newTeamDescription || undefined,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Validation Error",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     const { data, error } = await supabase
       .from('teams')
