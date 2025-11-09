@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Database, PlusCircle, Loader2 } from "lucide-react";
 import { seedSampleEvents } from "@/scripts/seedEvents";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Admin = () => {
   const navigate = useNavigate();
   const [seeding, setSeeding] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Please login to access admin panel');
+        navigate('/auth');
+        return;
+      }
+      
+      const { data: isAdmin, error } = await supabase.rpc('has_role', {
+        _user_id: user.id,
+        _role: 'admin'
+      });
+      
+      if (error || !isAdmin) {
+        toast.error('Access denied. Admin privileges required.');
+        navigate('/');
+        return;
+      }
+      
+      setLoading(true);
+    };
+    
+    checkAdminRole();
+  }, [navigate]);
 
   const handleSeedEvents = async () => {
     setSeeding(true);
@@ -27,6 +55,14 @@ const Admin = () => {
       setSeeding(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Verifying permissions...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

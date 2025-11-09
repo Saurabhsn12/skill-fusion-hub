@@ -115,6 +115,16 @@ export const seedSampleEvents = async () => {
       throw new Error("Must be logged in to seed events");
     }
 
+    // Verify admin role
+    const { data: isAdmin, error: roleError } = await supabase.rpc('has_role', {
+      _user_id: user.id,
+      _role: 'admin'
+    });
+
+    if (roleError || !isAdmin) {
+      throw new Error("Admin privileges required to seed events");
+    }
+
     const eventsWithCreator = sampleEvents.map(event => ({
       ...event,
       created_by: user.id

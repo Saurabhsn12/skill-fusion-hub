@@ -148,7 +148,6 @@ const CreateEvent = () => {
       toast.success("Event created successfully!");
       navigate("/events");
     } catch (error: any) {
-      console.error("Error creating event:", error);
       toast.error(error.message || "Failed to create event. Please try again.");
     } finally {
       setIsSubmitting(false);

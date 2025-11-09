@@ -44,7 +44,6 @@ const EventDetail = () => {
       if (error) throw error;
       setEvent(data);
     } catch (error) {
-      console.error('Error fetching event:', error);
       toast.error("Failed to load event");
     } finally {
       setLoading(false);
@@ -75,7 +74,6 @@ const EventDetail = () => {
       toast.success("Registration successful!");
       fetchEvent();
     } catch (error: any) {
-      console.error('Error registering:', error);
       toast.error(error.message || "Registration failed");
     } finally {
       setRegistering(false);
@@ -141,7 +139,6 @@ const EventDetail = () => {
       const paymentObject = new window.Razorpay(options);
       paymentObject.open();
     } catch (error: any) {
-      console.error('Error processing payment:', error);
       toast.error(error.message || "Payment failed");
     } finally {
       setRegistering(false);

@@ -78,7 +78,7 @@ const Profile = () => {
         linkedin_url: data.linkedin_url || "",
       });
     } catch (error: any) {
-      console.error('Error fetching profile:', error);
+      toast.error("Failed to load profile");
     } finally {
       setLoading(false);
     }
@@ -99,7 +99,7 @@ const Profile = () => {
 
       setEvents(data || []);
     } catch (error) {
-      console.error('Error fetching events:', error);
+      toast.error("Failed to load events");
     }
   };
 
@@ -127,7 +127,7 @@ const Profile = () => {
         });
       }
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      toast.error("Failed to load statistics");
     }
   };
 
@@ -213,7 +213,6 @@ const Profile = () => {
       fetchProfile();
       fetchUserStats();
     } catch (error: any) {
-      console.error('Error updating profile:', error);
       toast.error(error.message || "Failed to update profile");
     } finally {
       setUploading(false);

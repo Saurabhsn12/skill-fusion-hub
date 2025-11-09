@@ -8,6 +8,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import brandLogo from "@/assets/brand-logo.png";
+import { z } from "zod";
+
+const signUpSchema = z.object({
+  email: z.string().trim().email('Invalid email address').max(255, 'Email too long'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(100, 'Password too long')
+    .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+    .regex(/[0-9]/, 'Must contain at least one number'),
+  fullName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name too long'),
+  bgmiId: z.string().trim().max(50, 'ID too long').optional(),
+});
+
+const loginSchema = z.object({
+  email: z.string().trim().email('Invalid email address').max(255, 'Email too long'),
+  password: z.string().min(1, 'Password is required').max(100, 'Password too long'),
+});
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -44,9 +61,20 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
+      const validation = loginSchema.safeParse({ email, password });
+      if (!validation.success) {
+        toast({
+          title: "Validation Error",
+          description: validation.error.errors[0].message,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: validation.data.email,
+        password: validation.data.password,
       });
 
       if (error) {
@@ -78,14 +106,25 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
+      const validation = signUpSchema.safeParse({ email, password, fullName, bgmiId });
+      if (!validation.success) {
+        toast({
+          title: "Validation Error",
+          description: validation.error.errors[0].message,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+        email: validation.data.email,
+        password: validation.data.password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
-            full_name: fullName,
-            bgmi_id: bgmiId,
+            full_name: validation.data.fullName,
+            bgmi_id: validation.data.bgmiId,
           }
         }
       });
@@ -102,12 +141,11 @@ const Auth = () => {
           .from('profiles')
           .insert({
             user_id: data.user.id,
-            full_name: fullName,
-            bgmi_id: bgmiId || null,
+            full_name: validation.data.fullName,
+            bgmi_id: validation.data.bgmiId || null,
           });
 
         if (profileError) {
-          console.error("Profile creation error:", profileError);
           toast({
             title: "Warning",
             description: "Account created but profile setup failed. Please contact support.",

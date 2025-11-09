@@ -25,7 +25,7 @@ const Leaderboard = () => {
       if (error) throw error;
       setLeaderboardData(data || []);
     } catch (error) {
-      console.error('Error fetching leaderboard:', error);
+      // Silent fail - leaderboard loading errors are not critical
     } finally {
       setLoading(false);
     }
