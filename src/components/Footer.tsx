@@ -19,9 +19,6 @@ const Footer = () => {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-muted-foreground">
               <div>
-                <span className="font-medium text-foreground">Idea & Lead Developer:</span> Saurabh Nehra
-              </div>
-              <div>
                 <span className="font-medium text-foreground">UI/UX Designer:</span> Rahul Sharma
               </div>
               <div>
